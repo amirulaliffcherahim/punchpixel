@@ -1,0 +1,27 @@
+{
+    "manifest_version":  1,
+    "type":  [
+                 "activity"
+             ],
+    "name":  "PunchPixel",
+    "icon":  "icon.png",
+    "binary":  "PunchPixel_1.0.0.uapp",
+    "appVersion":  "1.0.0",
+    "minKernelVersion":  "1.4.0",
+    "requiredHardware":  [
+
+                         ],
+    "id":  "B4672B0D1F858124",
+    "description":  "Pop-art pixel boxing on four buttons. Top buttons jab, bottom buttons weave. Weave left-right-left-right to charge the Dempsey Roll and KO four rivals.",
+    "supportsLaps":  false,
+    "supportsDistance":  false,
+    "supportsTrack":  false,
+    "supportsHeartbeat":  false,
+    "supportsElevation":  false,
+    "supportsStep":  false,
+    "supportsSpeed":  "none",
+    "stravaExport":  false,
+    "customMeasures":  [
+
+                       ]
+}
