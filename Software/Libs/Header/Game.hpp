@@ -26,28 +26,30 @@ constexpr int kRollMax  = 5;
 constexpr int kPlayerHp = 100;
 
 // Timings in game milliseconds.
-constexpr uint32_t kJabMs          = 240;
-constexpr uint32_t kJabHitMs       = 90;    ///< when the glove lands
-constexpr uint32_t kWeaveMs        = 320;
-constexpr uint32_t kWeaveChainMs   = 120;   ///< a weave may be followed by the next after this
-constexpr uint32_t kWeaveGraceMs   = 60;    ///< late-dodge forgiveness
-constexpr uint32_t kHitStunMs      = 380;
-constexpr uint32_t kSwingMs        = 110;
-constexpr uint32_t kCounterMs      = 700;
-constexpr uint32_t kRollGapMs      = 700;   ///< max gap between weaves to keep the roll
-constexpr uint32_t kReadyHoldMs    = 1800;  ///< an armed roll waits this long
+// Fight pace is ~0.92x of the initial prototype (timings scaled by 1/0.92).
+constexpr uint32_t kJabMs          = 260;
+constexpr uint32_t kJabHitMs       = 100;   ///< when the glove lands
+constexpr uint32_t kWeaveMs        = 350;
+constexpr uint32_t kWeaveChainMs   = 130;   ///< a weave may be followed by the next after this
+constexpr uint32_t kWeaveGraceMs   = 65;    ///< late-dodge forgiveness
+constexpr uint32_t kHitStunMs      = 415;
+constexpr uint32_t kSwingMs        = 120;
+constexpr uint32_t kCounterMs      = 760;
+constexpr uint32_t kRollGapMs      = 760;   ///< max gap between weaves to keep the roll
+constexpr uint32_t kReadyHoldMs    = 1960;  ///< an armed roll waits this long
 constexpr uint32_t kIntroMs        = 2200;
 constexpr uint32_t kFightBannerMs  = 700;   ///< "FIGHT!" shows for the last part of the intro
-constexpr uint32_t kDempseyStepMs  = 170;
+constexpr uint32_t kDempseyStepMs  = 185;
 constexpr uint32_t kDempseyHits    = 8;
-constexpr uint32_t kDempseyMs      = 150 + kDempseyHits * kDempseyStepMs + 100;
-constexpr uint32_t kKoMs           = 1500;
-constexpr uint32_t kPopMs          = 450;
+constexpr uint32_t kDempseyMs      = 165 + kDempseyHits * kDempseyStepMs + 100;
+constexpr uint32_t kKoMs           = 1630;
+constexpr uint32_t kPopMs          = 490;
+constexpr uint32_t kCritDenom      = 10;    ///< 1 in kCritDenom jabs is a crit
 
 /// Same order as CustomMessage::HapticKind, shifted by one (NONE = 0).
 /// Ordered by priority: when two cues land in one tick the higher one plays.
 enum class Sfx : uint8_t {
-    NONE = 0, JAB, SELECT, DODGE, BLOCK, ROLL_UP, HIT, HURT, ROLL_READY, DEMPSEY, KO, WIN
+    NONE = 0, JAB, SELECT, DODGE, BLOCK, ROLL_UP, HIT, CRIT, HURT, ROLL_READY, DEMPSEY, KO, WIN
 };
 
 enum class Screen : uint8_t { TITLE, INTRO, FIGHT, PAUSE, WON, LOST, CHAMP };

@@ -8,10 +8,10 @@ namespace
 // Only the SDK's 64-colour palette: every channel is 00, 55, AA or FF.
 const FoeDef kFoes[kFoeCount] = {
     //  name            hp   wind gap  rest cmb grd dmg big  skin      hair      trunks    glove     bgA       bgB
-    { "ROOKIE RICK",    60,  560, 460, 900, 1,  10, 10, 0, 0xFFAA55, 0x555500, 0x00AAFF, 0xFF5555, 0xAA55FF, 0x5500AA },
-    { "KID KOBRA",      90,  470, 420, 760, 2,  25, 12, 0, 0xAA5500, 0x000000, 0x00AA55, 0xFFFF00, 0xFF5555, 0xAA0000 },
-    { "IRON IVAN",     120,  430, 410, 660, 3,  30, 13, 1, 0xFFAA55, 0xFFAA00, 0xAA0000, 0x55AAFF, 0x55AAFF, 0x0055AA },
-    { "KING KRUSH",    160,  390, 400, 600, 4,  30, 15, 2, 0x55AA55, 0xFF55FF, 0xFFFF00, 0xAA0000, 0xFFAA00, 0xAA5500 },
+    { "ROOKIE RICK",    60,  610, 500, 980, 1,  10, 10, 0, 0xFFAA55, 0x555500, 0x00AAFF, 0xFF5555, 0xAA55FF, 0x5500AA },
+    { "KID KOBRA",      90,  510, 455, 825, 2,  25, 12, 0, 0xAA5500, 0x000000, 0x00AA55, 0xFFFF00, 0xFF5555, 0xAA0000 },
+    { "IRON IVAN",     120,  470, 445, 720, 3,  30, 13, 1, 0xFFAA55, 0xFFAA00, 0xAA0000, 0x55AAFF, 0x55AAFF, 0x0055AA },
+    { "KING KRUSH",    160,  425, 435, 650, 4,  30, 15, 2, 0x55AA55, 0xFF55FF, 0xFFFF00, 0xAA0000, 0xFFAA00, 0xAA5500 },
 };
 } // namespace
 
@@ -202,7 +202,7 @@ void Game::fightPress(Btn b)
             return;
         }
         if (ps == PlState::WEAVE && t - pSince < kWeaveChainMs) return;
-        if (ps == PlState::JAB && t - pSince < 150) return;
+        if (ps == PlState::JAB && t - pSince < 165) return;
         ps = PlState::JAB;
         pSide = (b == Btn::L1) ? -1 : 1;
         pSince = t;
@@ -215,7 +215,7 @@ void Game::fightPress(Btn b)
 
     // Weave: L2 to the left, R2 to the right.
     if (ps == PlState::WEAVE && t - pSince < kWeaveChainMs) return;
-    if (ps == PlState::JAB && t - pSince < 150) return;
+    if (ps == PlState::JAB && t - pSince < 165) return;
     const int side = (b == Btn::L2) ? -1 : 1;
     if (lastWeaveSide == -side && t - lastWeaveAt <= kRollGapMs) {
         if (roll < kRollMax) ++roll;
@@ -242,7 +242,7 @@ void Game::startDempsey()
     roll = 0;
     lastWeaveSide = 0;
     dmpHits = 0;
-    dmpNext = t + 150;
+    dmpNext = t + 165;
     jabResolved = true;
     if (fs != FoeState::KO) {
         fs = FoeState::STUN;
@@ -276,7 +276,8 @@ void Game::foeDamage(int dmg, Pop p, int side)
     hitFlashUntil = t + 130;
     shakeUntil = t + (p == Pop::WHAM ? 300 : 110);
     setPop(p, side);
-    emit(p == Pop::WHAM ? Sfx::HURT : Sfx::HIT);
+    // Only a rolled crit (Pop::COUNTER) makes a sound; every other landed hit is Sfx::HIT.
+    emit(p == Pop::COUNTER ? Sfx::CRIT : Sfx::HIT);
     if (foeHp <= 0) {
         koFoe();
     }
@@ -307,7 +308,7 @@ void Game::resolveJab()
             fUntil = t + 900;
             counterUntil = fUntil;
             setPop(Pop::WHAM, pSide);
-            emit(Sfx::HURT);
+            emit(Sfx::HIT);
         } else {
             setPop(Pop::BLOCK, pSide);
             emit(Sfx::BLOCK);
@@ -316,8 +317,11 @@ void Game::resolveJab()
     }
 
     const bool counter = t < counterUntil;
-    score += counter ? 20 : 5;
-    foeDamage(counter ? 10 : 5, counter ? Pop::COUNTER : ((jabs % 2) ? Pop::POW : Pop::BAM), pSide);
+    const bool crit    = rand(kCritDenom) == 0;    // 1 in 10 jabs
+    int dmg = (counter ? 10 : 5) + (crit ? 5 : 0);
+    score += (counter ? 20 : 5) + (crit ? 25 : 0);
+    const Pop p = crit ? Pop::COUNTER : (counter ? Pop::WHAM : ((jabs % 2) ? Pop::POW : Pop::BAM));
+    foeDamage(dmg, p, pSide);
     fHurtUntil = t + 160;
 }
 

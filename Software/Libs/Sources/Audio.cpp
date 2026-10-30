@@ -9,31 +9,33 @@ struct Tone { uint16_t hz; uint16_t ms; };
 
 struct Def
 {
-    uint8_t  vibro;      ///< RequestVibroPlay::Effect
-    uint16_t vibroMs;    ///< rough length of that effect, for scheduling only
-    uint8_t  volume;     ///< 33 / 66 (the kernel has four levels)
-    Tone     tones[4];   ///< ms = 0 ends the list
+    uint8_t  vibro;      ///< RequestVibroPlay::Effect (0 = silent)
+    uint16_t holdMs;     ///< how long before a lesser cue may tick again
+    uint8_t  volume;     ///< 33 = softest step
+    Tone     tones[2];
 };
 
-// Indexed by Sfx. Same chiptune voicing as before, moved into the piezo's
-// documented range: the low "thuds" now sit at 500-700 Hz.
+// Indexed by Sfx. Swinging (JAB) and weaving (ROLL_UP) do not vibrate: the
+// tick happens when the punch lands (HIT / BLOCK / CRIT / HURT), so each punch
+// is felt once, as a short single-shot click. Effects: 24 SHARP_TICK,
+// 21 MEDIUM_CLICK, 17 STRONG_CLICK, 4 SHARP_CLICK.
 const Def kDefs[] = {
-    { 0,  0,   0,  { {0, 0} } },                                              // NONE
-    { 24, 30,  33, { {1100, 25}, {0, 0} } },                                  // JAB
-    { 4,  30,  33, { {1500, 30}, {0, 0} } },                                  // SELECT
-    { 7,  40,  33, { {900, 25}, {1400, 35}, {0, 0} } },                       // DODGE
-    { 1,  40,  33, { {520, 40}, {0, 0} } },                                   // BLOCK
-    { 24, 30,  33, { {1300, 25}, {0, 0} } },                                  // ROLL_UP
-    { 1,  40,  66, { {700, 35}, {520, 45}, {0, 0} } },                        // HIT
-    { 14, 250, 66, { {600, 70}, {500, 90}, {0, 0} } },                        // HURT
-    { 27, 120, 66, { {1000, 50}, {1500, 50}, {2000, 80}, {0, 0} } },          // ROLL_READY
-    { 52, 600, 66, { {1800, 40}, {1400, 40}, {1800, 40}, {2200, 90} } },      // DEMPSEY
-    { 15, 750, 66, { {900, 100}, {700, 110}, {500, 250}, {0, 0} } },          // KO
-    { 37, 300, 66, { {1000, 80}, {1300, 80}, {1600, 80}, {2200, 220} } },     // WIN
+    { 0,  0,   0,  { {0, 0} } },                        // NONE
+    { 0,  0,   0,  { {0, 0} } },                        // JAB (silent until it lands)
+    { 24, 80,  0,  { {0, 0} } },                        // SELECT
+    { 24, 140, 0,  { {0, 0} } },                        // DODGE
+    { 24, 140, 0,  { {0, 0} } },                        // BLOCK
+    { 0,  0,   0,  { {0, 0} } },                        // ROLL_UP (weave is visual)
+    { 24, 140, 0,  { {0, 0} } },                        // HIT: one crisp tick per landed punch
+    { 21, 160, 33, { {1800, 35}, {0, 0} } },            // CRIT: the only sound (1 in 10 jabs)
+    { 21, 180, 0,  { {0, 0} } },                        // HURT
+    { 4,  160, 0,  { {0, 0} } },                        // ROLL_READY
+    { 21, 160, 0,  { {0, 0} } },                        // DEMPSEY
+    { 17, 220, 0,  { {0, 0} } },                        // KO
+    { 17, 220, 0,  { {0, 0} } },                        // WIN
 };
 constexpr uint32_t kDefCount = sizeof(kDefs) / sizeof(kDefs[0]);
 
-/// Wrap-safe "a is at or after b" for millisecond clocks.
 bool atOrAfter(uint32_t a, uint32_t b) { return static_cast<int32_t>(a - b) >= 0; }
 } // namespace
 
@@ -54,16 +56,15 @@ Plan Audio::play(Sfx s, uint32_t now)
         return p;
     }
     const Def& d = kDefs[idx];
-    const uint8_t prio = static_cast<uint8_t>(idx);   // Sfx is ordered by importance
+    const uint8_t prio = static_cast<uint8_t>(idx);
 
-    // Haptics: a long effect is only cut short by something more important.
     if (d.vibro && (!mStarted || atOrAfter(now, mVibroFreeAt) || prio > mVibroPrio)) {
         p.vibro      = d.vibro;
-        mVibroFreeAt = now + d.vibroMs;
+        const uint32_t gap = d.holdMs > kMinVibroGapMs ? d.holdMs : kMinVibroGapMs;
+        mVibroFreeAt = now + gap;
         mVibroPrio   = prio;
     }
 
-    // Buzzer: never on top of a pattern that is still sounding.
     const bool buzzerFree = !mStarted ||
                             (atOrAfter(now, mBuzzerFreeAt) &&
                              atOrAfter(now, mBuzzerLastStart + kMinBuzzerGapMs));

@@ -110,8 +110,9 @@ TEST(Game, TopButtonsJabWithTheMatchingGlove)
     EXPECT_EQ(r.g.pSide, -1);
     const int hp = r.g.foeHp;
     r.run(kJabHitMs + 10);
-    EXPECT_EQ(r.g.foeHp, hp - 5);
-    EXPECT_TRUE(r.heardAny(Sfx::HIT));
+    // 5 damage on a normal jab, 10 on the 1-in-10 crit roll.
+    EXPECT_TRUE(r.g.foeHp == hp - 5 || r.g.foeHp == hp - 10);
+    EXPECT_TRUE(r.heardAny(Sfx::HIT) || r.heardAny(Sfx::CRIT));
     r.run(kJabMs);
     EXPECT_EQ(r.g.ps, PlState::IDLE);
     r.press(Btn::R1);
@@ -179,8 +180,9 @@ TEST(Game, CounterAfterDodgeDoesDoubleDamage)
     const int hp = r.g.foeHp;
     r.press(Btn::R1);
     r.run(kJabHitMs + 10);
-    EXPECT_EQ(r.g.foeHp, hp - 10);
-    EXPECT_EQ(r.g.pop, Pop::COUNTER);
+    // Counter is 10 damage (+5 more if it also rolls the 1/10 crit).
+    EXPECT_TRUE(r.g.foeHp == hp - 10 || r.g.foeHp == hp - 15);
+    EXPECT_TRUE(r.g.pop == Pop::WHAM || r.g.pop == Pop::COUNTER);
 }
 
 TEST(Game, GuardBlocksJabsAndBreaksOnTheThird)
@@ -200,6 +202,24 @@ TEST(Game, GuardBlocksJabsAndBreaksOnTheThird)
     r.press(Btn::L1);
     r.run(kJabHitMs + 10);
     EXPECT_EQ(r.g.fs, FoeState::STUN);
+    EXPECT_TRUE(r.heardAny(Sfx::HIT));                  // guard break is a hit, not a crit
+}
+
+TEST(Game, AboutOneJabInTenIsACrit)
+{
+    Rig r;
+    r.toFight();
+    r.g.foeHp = 100000;
+    int crits = 0;
+    for (int i = 0; i < 200; ++i) {
+        r.calmFoe(10000);
+        r.heard.clear();
+        r.press((i & 1) ? Btn::R1 : Btn::L1);
+        r.run(kJabMs + 20);
+        if (r.heardAny(Sfx::CRIT)) ++crits;
+    }
+    EXPECT_GE(crits, 10);                               // 200 * 1/10 = 20 expected
+    EXPECT_LE(crits, 35);
 }
 
 TEST(Game, AlternatingWeavesArmTheDempseyRoll)

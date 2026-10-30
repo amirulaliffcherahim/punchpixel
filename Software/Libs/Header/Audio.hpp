@@ -3,18 +3,14 @@
  * @file    Audio.hpp
  * @brief   Decides what the piezo and vibration motor actually play.
  *
- * The game asks for a cue on almost every hit; the hardware must not get one
- * request per hit. This scheduler keeps the drivers gentle:
+ * The game is fast; the hardware must stay gentle:
  *
- *  - The buzzer is never re-triggered while a pattern is still sounding (a
- *    pattern started on top of another one could leave the piezo driven).
- *    A cue that arrives while it is busy plays haptics only.
- *  - Every pattern ends on an explicit silent note, so the piezo is always
- *    left off, and starts are at least kMinBuzzerGapMs apart.
- *  - Pitches stay inside the SDK's 500-20000 Hz range (clamped to 500-4000),
- *    and volume is capped at 66 %.
- *  - A long vibration effect is only cut short by a more important cue.
- *  - stop() silences both, for exit and suspend.
+ *  - The buzzer sounds for a critical hit (1 in 10 jabs) only, as a single
+ *    short tone followed by a silent note so the piezo is always left off.
+ *  - Button presses and weaves do not vibrate; only landed punches, dodges
+ *    and round moments do, each as one short single-shot click/tick, at least
+ *    kMinVibroGapMs apart.
+ *  - stop() silences both drivers on suspend and exit.
  *
  * Pure logic, no kernel: the service turns a Plan into kernel messages.
  ******************************************************************************
@@ -30,12 +26,13 @@
 namespace Pp
 {
 
-constexpr uint16_t kMinHz           = 500;
-constexpr uint16_t kMaxHz           = 4000;
-constexpr uint8_t  kMaxVolume       = 66;
-constexpr uint16_t kTailRestMs      = 30;    ///< silent note closing every pattern
-constexpr uint32_t kMinBuzzerGapMs  = 90;    ///< between buzzer pattern starts
-constexpr uint32_t kMaxNotes        = 6;     ///< kernel allows 10
+constexpr uint16_t kMinHz          = 500;
+constexpr uint16_t kMaxHz          = 4000;
+constexpr uint8_t  kMaxVolume      = 33;     ///< softest audible step
+constexpr uint16_t kTailRestMs     = 30;     ///< silent note closing every pattern
+constexpr uint32_t kMinBuzzerGapMs = 600;    ///< between crit beeps
+constexpr uint32_t kMinVibroGapMs  = 140;    ///< between motor ticks (one per punch)
+constexpr uint32_t kMaxNotes       = 4;
 
 struct Note
 {
@@ -54,21 +51,16 @@ struct Plan
 class Audio
 {
 public:
-    /// What to play for cue @p s at @p nowMs.
     Plan play(Sfx s, uint32_t nowMs);
-
-    /// Forget what is playing (after the caller silenced both drivers).
-    void stop() { mBuzzerFreeAt = mVibroFreeAt = 0; mVibroPrio = 0; mStarted = false; }
-
-    /// Total length of a plan's buzzer pattern, rests included.
+    void stop() { mBuzzerFreeAt = mBuzzerLastStart = mVibroFreeAt = 0; mVibroPrio = 0; mStarted = false; }
     static uint32_t patternMs(const Plan& p);
 
 private:
-    uint32_t mBuzzerFreeAt = 0;
+    uint32_t mBuzzerFreeAt    = 0;
     uint32_t mBuzzerLastStart = 0;
-    uint32_t mVibroFreeAt  = 0;
-    uint8_t  mVibroPrio    = 0;
-    bool     mStarted      = false;
+    uint32_t mVibroFreeAt     = 0;
+    uint8_t  mVibroPrio       = 0;
+    bool     mStarted         = false;
 };
 
 } // namespace Pp

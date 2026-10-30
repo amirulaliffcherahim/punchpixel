@@ -88,7 +88,9 @@ try {
     Start-Sleep -Milliseconds 900
     Shot "09_after_roll"
 
-    "== hold R2 pauses"
+    "== next fight: hold R2 pauses"
+    Start-Sleep -Milliseconds 1800
+    Tap '3'; Start-Sleep -Milliseconds 2800
     Tap '4' 1100
     Start-Sleep -Milliseconds 300
     Shot "10_pause"; $sp = Sig
@@ -96,6 +98,12 @@ try {
     Check ((Sig) -eq $sp) "pause screen holds still"
     Tap '1'; Start-Sleep -Milliseconds 300
     Check ((Sig) -ne $sp) "top button resumes"
+
+    "== jab until a 1/10 crit lands"
+    for ($i = 0; $i -lt 16; $i++) {
+        Tap $(if ($i % 2) { '3' } else { '1' }) 40
+        Start-Sleep -Milliseconds 320
+    }
 
     "== hold R2 twice quits"
     Tap '4' 1100; Start-Sleep -Milliseconds 300
@@ -110,8 +118,9 @@ try {
 Start-Sleep -Milliseconds 300
 $log = [string](Get-Content "$OutDir\sim.log" -Raw)
 Check ([bool]($log -match "Mock\.Vibro::play")) "vibro played"
-Check ([bool]($log -match "Mock\.Buzzer::play")) "buzzer played"
-Check ([bool]($log -match "effect=52,")) "Dempsey Roll cue (PULSING_STRONG 52) played"
-Check ([bool]($log -match "2200 Hz")) "Dempsey fanfare reached its top note"
+Check (-not ($log -match "effect=(10|14|15|16|27|34|37|47|52|54|56),")) "short single-click vibration effects only"
+$tones = [regex]::Matches($log, "level=[1-3], (\d+) Hz") | % { [int]$_.Groups[1].Value }
+Check (($tones | ? { $_ -ne 1800 }).Count -eq 0) "buzzer only ever plays the 1800 Hz crit note"
+Check ($tones.Count -le 4) "buzzer rarely fires (crit is 1 in 10)"
 
 if ($script:fail.Count) { "FAILED: $($script:fail.Count)"; exit 1 } else { "ALL OK"; exit 0 }

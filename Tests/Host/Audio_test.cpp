@@ -6,88 +6,76 @@ using namespace Pp;
 
 namespace
 {
-const Sfx kAll[] = { Sfx::JAB, Sfx::SELECT, Sfx::DODGE, Sfx::BLOCK, Sfx::ROLL_UP, Sfx::HIT,
+const Sfx kAll[] = { Sfx::JAB, Sfx::SELECT, Sfx::DODGE, Sfx::BLOCK, Sfx::ROLL_UP, Sfx::HIT, Sfx::CRIT,
                      Sfx::HURT, Sfx::ROLL_READY, Sfx::DEMPSEY, Sfx::KO, Sfx::WIN };
+static_assert(sizeof(kAll) / sizeof(kAll[0]) == static_cast<size_t>(Sfx::WIN), "every cue listed");
 }
 
-TEST(Audio, EveryPatternEndsSilentAndStaysInTheSafeRange)
+TEST(Audio, OnlyACritMakesASoundAndWindupsAreSilent)
 {
     for (Sfx s : kAll) {
         Audio a;
         const Plan p = a.play(s, 1000);
-        ASSERT_GE(p.noteCount, 2u) << static_cast<int>(s);
-        ASSERT_LE(p.noteCount, kMaxNotes);
-        const Note& last = p.notes[p.noteCount - 1];
-        EXPECT_EQ(last.vol, 0) << "pattern must leave the piezo off";
-        EXPECT_GT(last.ms, 0);
-        for (uint32_t i = 0; i + 1 < p.noteCount; ++i) {
-            const Note& n = p.notes[i];
-            EXPECT_GE(n.hz, 500) << "below the SDK's 500 Hz floor";
-            EXPECT_LE(n.hz, kMaxHz);
-            EXPECT_GT(n.ms, 0);
-            EXPECT_LE(n.vol, kMaxVolume);
-            EXPECT_GT(n.vol, 0);
+        if (s == Sfx::CRIT) {
+            EXPECT_GT(p.noteCount, 0u);
+        } else {
+            EXPECT_EQ(p.noteCount, 0u) << "cue " << static_cast<int>(s);
         }
-        EXPECT_LE(Audio::patternMs(p), 700u);
-        EXPECT_GT(p.vibro, 0);
-    }
-}
-
-TEST(Audio, BuzzerIsNeverRetriggeredWhilePlaying)
-{
-    Audio a;
-    const Plan first = a.play(Sfx::KO, 1000);
-    ASSERT_GT(first.noteCount, 0u);
-    const uint32_t len = Audio::patternMs(first);
-    // Hammering cues during the pattern: haptics may go, the buzzer must not.
-    for (uint32_t t = 1010; t < 1000 + len; t += 10) {
-        EXPECT_EQ(a.play(Sfx::WIN, t).noteCount, 0u) << "at +" << (t - 1000);
-    }
-    EXPECT_GT(a.play(Sfx::JAB, 1000 + len).noteCount, 0u);   // free again afterwards
-}
-
-TEST(Audio, BuzzerStartsAreRateLimited)
-{
-    Audio a;
-    ASSERT_GT(a.play(Sfx::JAB, 1000).noteCount, 0u);   // 25 + 30 ms
-    EXPECT_EQ(a.play(Sfx::JAB, 1060).noteCount, 0u);   // pattern over, gap not
-    EXPECT_GT(a.play(Sfx::JAB, 1000 + kMinBuzzerGapMs).noteCount, 0u);
-}
-
-TEST(Audio, ASustainedCueStormStillSoundsButNeverOverlaps)
-{
-    // 10 cues a second for 10 s: every one can sound (they are short), but
-    // never two patterns at once.
-    Audio a;
-    int buzz = 0;
-    uint32_t busyUntil = 0;
-    for (uint32_t t = 0; t < 10000; t += 100) {
-        const uint32_t now = 5000 + t;
-        const Plan p = a.play(Sfx::JAB, now);
-        if (p.noteCount) {
-            EXPECT_GE(now, busyUntil);
-            busyUntil = now + Audio::patternMs(p);
-            ++buzz;
+        if (s == Sfx::JAB || s == Sfx::ROLL_UP) {
+            EXPECT_EQ(p.vibro, 0) << "swing/weave must not vibrate before contact";
+        } else {
+            EXPECT_GT(p.vibro, 0) << static_cast<int>(s);
         }
     }
-    EXPECT_GE(buzz, 50);                               // still sounds like a fight
 }
 
-TEST(Audio, LongVibrationIsNotCutByLesserCues)
+TEST(Audio, VibrationsAreShortSingleClicksOnly)
+{
+    // Single-shot click/tick effects only: no buzz, alert, double or pulsing patterns.
+    const uint8_t allowed[] = { 0, 4, 17, 21, 24 };
+    for (Sfx s : kAll) {
+        Audio a;
+        const uint8_t v = a.play(s, 1000).vibro;
+        bool ok = false;
+        for (uint8_t e : allowed) ok |= v == e;
+        EXPECT_TRUE(ok) << "cue " << static_cast<int>(s) << " uses effect " << int(v);
+    }
+}
+
+TEST(Audio, CritBeepIsOneShortSoftNoteAndEndsSilent)
 {
     Audio a;
-    ASSERT_EQ(a.play(Sfx::KO, 1000).vibro, 15);
-    EXPECT_EQ(a.play(Sfx::JAB, 1100).vibro, 0);        // the KO buzz keeps going
-    EXPECT_EQ(a.play(Sfx::WIN, 1200).vibro, 37);       // a bigger moment may take over
-    EXPECT_GT(a.play(Sfx::JAB, 1200 + 400).vibro, 0);  // free again later
+    const Plan p = a.play(Sfx::CRIT, 1000);
+    ASSERT_EQ(p.noteCount, 2u);
+    EXPECT_GE(p.notes[0].hz, 500);
+    EXPECT_LE(p.notes[0].hz, kMaxHz);
+    EXPECT_LE(p.notes[0].ms, 50);
+    EXPECT_LE(p.notes[0].vol, 33);
+    EXPECT_EQ(p.notes[1].vol, 0) << "must leave the piezo off";
+    EXPECT_GT(p.notes[1].ms, 0);
+}
+
+TEST(Audio, CritsAndTicksRespectTheirRateGaps)
+{
+    Audio a;
+    ASSERT_GT(a.play(Sfx::CRIT, 1000).noteCount, 0u);
+    for (uint32_t t = 1010; t < 1000 + kMinBuzzerGapMs; t += 40) {
+        EXPECT_EQ(a.play(Sfx::CRIT, t).noteCount, 0u);
+    }
+    EXPECT_GT(a.play(Sfx::CRIT, 1000 + kMinBuzzerGapMs).noteCount, 0u);
+
+    Audio b;
+    ASSERT_GT(b.play(Sfx::HIT, 2000).vibro, 0);
+    EXPECT_EQ(b.play(Sfx::HIT, 2050).vibro, 0);
+    EXPECT_GT(b.play(Sfx::HIT, 2000 + kMinVibroGapMs).vibro, 0);
 }
 
 TEST(Audio, StopForgetsTheSchedule)
 {
     Audio a;
-    a.play(Sfx::KO, 1000);
+    a.play(Sfx::CRIT, 1000);
     a.stop();
-    EXPECT_GT(a.play(Sfx::JAB, 1010).noteCount, 0u);
+    EXPECT_GT(a.play(Sfx::CRIT, 1010).noteCount, 0u);
 }
 
 TEST(Audio, UnknownCueDoesNothing)
@@ -96,12 +84,11 @@ TEST(Audio, UnknownCueDoesNothing)
     const Plan p = a.play(static_cast<Sfx>(200), 1000);
     EXPECT_EQ(p.noteCount, 0u);
     EXPECT_EQ(p.vibro, 0);
-    EXPECT_EQ(a.play(Sfx::NONE, 1000).noteCount, 0u);
 }
 
 TEST(Audio, ClockWrapDoesNotLockTheBuzzer)
 {
     Audio a;
-    ASSERT_GT(a.play(Sfx::KO, 0xFFFFFF00u).noteCount, 0u);
-    EXPECT_GT(a.play(Sfx::JAB, 0x00000400u).noteCount, 0u);   // after the wrap, long done
+    ASSERT_GT(a.play(Sfx::CRIT, 0xFFFFFF00u).noteCount, 0u);
+    EXPECT_GT(a.play(Sfx::CRIT, 0x00000400u).noteCount, 0u);
 }

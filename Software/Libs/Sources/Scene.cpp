@@ -354,7 +354,7 @@ void drawPlayer(Painter& p, const Game& g, const Cam& cam)
     const int restY = 64 + bob + dyy;
 
     const bool dmp = g.ps == PlState::DEMPSEY;
-    const int dmpT = dmp ? static_cast<int>(g.t - g.pSince) - 150 : -1;
+    const int dmpT = dmp ? static_cast<int>(g.t - g.pSince) - 165 : -1;
 
     for (int i = 0; i < 2; ++i) {
         const int sd = i == 0 ? -1 : 1;
@@ -365,7 +365,8 @@ void drawPlayer(Painter& p, const Game& g, const Cam& cam)
             const int idx = dmpT / static_cast<int>(kDempseyStepMs);
             const int frac = dmpT % static_cast<int>(kDempseyStepMs);
             if ((idx & 1) == i && idx < static_cast<int>(kDempseyHits)) {
-                ext = frac < 85 ? frac * 100 / 85 : (170 - frac) * 100 / 85;
+                const int half = static_cast<int>(kDempseyStepMs) / 2;
+                ext = frac < half ? frac * 100 / half : (static_cast<int>(kDempseyStepMs) - frac) * 100 / half;
             }
         }
         int cx = restX[i] + sway;
