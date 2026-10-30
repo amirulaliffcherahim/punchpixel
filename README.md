@@ -55,7 +55,7 @@ cmake --build Software/Apps/LVGL-GUI/simulator/build --config Debug
 
 Simulator keys: `1` L1, `2` L2, `3` R1, `4` R2, `Esc` quit. `Tests/Sim/drive.ps1` plays it end to end and checks the sound and vibration log.
 
-`Output/` holds the released build (`PunchPixel_1.0.0.uapp`, store ID `B4672B0D1F858124`).
+`Output/` holds the released build (`PunchPixel_1.0.1.uapp`, store ID `B4672B0D1F858124`).
 
 ## Licence
 
