@@ -78,6 +78,23 @@ int isin(int d)
     return -kSin[360 - d];
 }
 
+int isqrtFloor(int v)
+{
+    if (v <= 0) return 0;
+    int lo = 0, hi = 46341;                        // 46341^2 > INT_MAX
+    while (lo < hi) {                              // largest r with r*r <= v
+        const int mid = lo + (hi - lo + 1) / 2;
+        if (mid <= v / mid) lo = mid; else hi = mid - 1;
+    }
+    return lo;
+}
+
+int isqrtCeil(int v)
+{
+    const int r = isqrtFloor(v);
+    return r * r == v ? r : r + 1;
+}
+
 int glyphIndex(char c)
 {
     if (c >= 'a' && c <= 'z') {
@@ -147,16 +164,30 @@ void Painter::ring(int cx, int cy, int ri, int ro, int a0, int a1, uint32_t rgb,
             continue;
         }
         uint16_t* row = mBuf + (y - mOy) * mStride;
-        for (int x = x0; x <= x1; ++x) {
-            const int px = 2 * ((x / grid) * grid) + grid - 2 * cx;
-            const int d2 = px * px + py2;
-            if (d2 < ri2 || d2 >= ro2) {
-                continue;
-            }
-            for (int k = 0; k < n; ++k) {
-                if (ax[k] * py - ay[k] * px >= 0 && px * by[k] - py * bx[k] >= 0) {
-                    row[x - mOx] = c;
-                    break;
+        // Only the two spans the ring covers on this row need testing: from
+        // the outer edge to the inner edge on each side. The margin covers
+        // the grid snapping; the exact test below decides every pixel.
+        const int pad = grid + 1;
+        const int outer = isqrtCeil(ro2 - py2) / 2 + pad;
+        const int inner = py2 < ri2 ? isqrtFloor(ri2 - py2) / 2 - pad : -1;
+        // Row inside the hole: two spans, left and right; otherwise one.
+        const int spans = inner > 0 ? 2 : 1;
+        for (int sp = 0; sp < spans; ++sp) {
+            int sx0 = sp == 0 ? cx - outer : cx + inner;
+            int sx1 = spans == 1 ? cx + outer : (sp == 0 ? cx - inner : cx + outer);
+            if (sx0 < x0) sx0 = x0;
+            if (sx1 > x1) sx1 = x1;
+            for (int x = sx0; x <= sx1; ++x) {
+                const int px = 2 * ((x / grid) * grid) + grid - 2 * cx;
+                const int d2 = px * px + py2;
+                if (d2 < ri2 || d2 >= ro2) {
+                    continue;
+                }
+                for (int k = 0; k < n; ++k) {
+                    if (ax[k] * py - ay[k] * px >= 0 && px * by[k] - py * bx[k] >= 0) {
+                        row[x - mOx] = c;
+                        break;
+                    }
                 }
             }
         }

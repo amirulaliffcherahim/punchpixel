@@ -67,6 +67,7 @@ void MainScreen::appSuspended()
 {
     mGame.pause();
     mR2Down = false;
+    mModel.sfx(0);              // Sfx::NONE: silence buzzer and motor now
 }
 
 void MainScreen::play(Pp::Sfx s)
@@ -130,7 +131,14 @@ void MainScreen::onTick()
     }
 
     play(mGame.tick(now));
-    lv_obj_invalidate(mCanvas);
+
+    // Repaint only when the picture can change. The pause menu is static;
+    // every other screen animates (blinks, scrolling halftone, the fight).
+    const bool still = mGame.screen == Pp::Screen::PAUSE;
+    if (!still || !mPaintedStill) {
+        lv_obj_invalidate(mCanvas);
+    }
+    mPaintedStill = still;
 }
 
 void MainScreen::onDraw(lv_event_t* e)

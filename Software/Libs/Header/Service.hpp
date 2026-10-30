@@ -2,9 +2,8 @@
 #define __SERVICE_HPP__
 
 #include "SDK/Kernel/KernelProviderService.hpp"
-#include "SDK/Interfaces/ISensorDataListener.hpp"
-#include "SDK/SensorLayer/SensorConnection.hpp"
-#include "SDK/SensorLayer/SensorDataBatch.hpp"
+
+#include "Audio.hpp"
 
 class Service
 {
@@ -22,6 +21,9 @@ private:
     void onStartGUI();
     void onStopGUI();
     void playSfx(uint32_t kind);
+    void silence();
+
+    Pp::Audio mAudio;
 
     static uint32_t ParseVersion(const char* str);
 };

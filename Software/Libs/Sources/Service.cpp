@@ -1,5 +1,3 @@
-#include "SDK/Messages/SensorLayerMessages.hpp"
-
 #include "Service.hpp"
 #include "Commands.hpp"
 #include "SDK/Messages/CommandMessages.hpp"
@@ -25,6 +23,7 @@ void Service::run()
                 // Kernel messages
                 case SDK::MessageType::COMMAND_APP_STOP:
                     LOG_INFO("Force exit from the application\n");
+                    silence();
                     // We must release message because this is the last event.
                     mKernel.comm.releaseMessage(msg);
                     return;
@@ -65,6 +64,7 @@ void Service::onStopGUI()
 {
     LOG_INFO("GUI stopped\n");
     mGUIStarted = false;
+    silence();                                     // nothing may keep sounding after the game
 }
 
 uint32_t Service::ParseVersion(const char* str)
@@ -96,59 +96,45 @@ uint32_t Service::ParseVersion(const char* str)
     return 0;
 }
 
-namespace
-{
-struct Tone { uint16_t hz; uint16_t ms; };
-struct SfxDef { uint8_t vibro; uint8_t volume; Tone tones[4]; };
-
-// Indexed by Pp::Sfx (0 = NONE). Buzzer volume steps are 33 / 66 / 100.
-const SfxDef kSfx[] = {
-    { 0,  0,   { {0,0} } },                                                          // NONE
-    { 24, 33,  { {1100, 25}, {0,0} } },                                              // JAB
-    { 4,  33,  { {1500, 30}, {0,0} } },                                              // SELECT
-    { 7,  33,  { {900, 25}, {1400, 35}, {0,0} } },                                   // DODGE
-    { 1,  33,  { {300, 40}, {0,0} } },                                               // BLOCK
-    { 24, 33,  { {1300, 25}, {0,0} } },                                              // ROLL_UP
-    { 1,  66,  { {500, 35}, {250, 45}, {0,0} } },                                    // HIT
-    { 14, 100, { {200, 70}, {130, 90}, {0,0} } },                                    // HURT
-    { 27, 66,  { {1000, 50}, {1500, 50}, {2000, 80}, {0,0} } },                      // ROLL_READY
-    { 52, 66,  { {1800, 40}, {1400, 40}, {1800, 40}, {2200, 90} } },                 // DEMPSEY
-    { 15, 100, { {700, 100}, {500, 110}, {250, 250}, {0,0} } },                      // KO
-    { 37, 66,  { {1000, 80}, {1300, 80}, {1600, 80}, {2200, 220} } },                // WIN
-};
-} // namespace
-
 void Service::playSfx(uint32_t kind)
 {
-    using Vibro  = SDK::Message::RequestVibroPlay;
-    using Buzzer = SDK::Message::RequestBuzzerPlay;
-
-    if (kind == 0 || kind >= sizeof(kSfx) / sizeof(kSfx[0])) {
-        return;
+    if (kind == 0 || kind > static_cast<uint32_t>(Pp::Sfx::WIN)) {
+        return;                                    // trust boundary: unknown cue
     }
-    const SfxDef& d = kSfx[kind];
+    const Pp::Plan p = mAudio.play(static_cast<Pp::Sfx>(kind), mKernel.sys.getTimeMs());
 
-    if (auto* v = mKernel.comm.allocateMessage<Vibro>()) {
-        v->notes[0].effect = d.vibro;
-        v->notesCount = 1;
+    if (p.vibro) {
+        if (auto* v = mKernel.comm.allocateMessage<SDK::Message::RequestVibroPlay>()) {
+            v->notes[0].effect = p.vibro;
+            v->notesCount = 1;
+            mKernel.comm.sendMessage(v);
+            mKernel.comm.releaseMessage(v);
+        }
+    }
+    if (p.noteCount) {
+        if (auto* b = mKernel.comm.allocateMessage<SDK::Message::RequestBuzzerPlay>()) {
+            for (uint32_t i = 0; i < p.noteCount; ++i) {
+                b->notes[i].volume    = p.notes[i].vol;
+                b->notes[i].time      = p.notes[i].ms;
+                b->notes[i].frequency = p.notes[i].hz;
+            }
+            b->notesCount = p.noteCount;
+            mKernel.comm.sendMessage(b);
+            mKernel.comm.releaseMessage(b);
+        }
+    }
+}
+
+void Service::silence()
+{
+    // Empty patterns cancel whatever is playing (as the SDK's Alarm and Timer do).
+    if (auto* b = mKernel.comm.allocateMessage<SDK::Message::RequestBuzzerPlay>()) {
+        mKernel.comm.sendMessage(b);
+        mKernel.comm.releaseMessage(b);
+    }
+    if (auto* v = mKernel.comm.allocateMessage<SDK::Message::RequestVibroPlay>()) {
         mKernel.comm.sendMessage(v);
         mKernel.comm.releaseMessage(v);
     }
-    if (auto* b = mKernel.comm.allocateMessage<Buzzer>()) {
-        uint32_t n = 0;
-        for (const Tone& t : d.tones) {
-            if (t.ms == 0) {
-                break;
-            }
-            b->notes[n].volume    = d.volume;
-            b->notes[n].time      = t.ms;
-            b->notes[n].frequency = t.hz;
-            ++n;
-        }
-        b->notesCount = n;
-        if (n) {
-            mKernel.comm.sendMessage(b);
-        }
-        mKernel.comm.releaseMessage(b);
-    }
+    mAudio.stop();
 }

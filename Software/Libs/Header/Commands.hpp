@@ -12,7 +12,7 @@ namespace CustomMessage {
 // GUI --> Service: only the Service may drive the buzzer and vibro motor.
 constexpr SDK::MessageType::Type SFX = 0x00000001;
 
-/// `kind` is a Pp::Sfx value (see Game.hpp).
+/// `kind` is a Pp::Sfx value (see Game.hpp); 0 (Sfx::NONE) silences buzzer and motor.
 struct Sfx : public SDK::MessageBase {
     uint32_t kind;
 

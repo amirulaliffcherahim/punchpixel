@@ -5,8 +5,8 @@
              ],
     "name":  "PunchPixel",
     "icon":  "icon.png",
-    "binary":  "PunchPixel_1.0.0.uapp",
-    "appVersion":  "1.0.0",
+    "binary":  "PunchPixel_1.0.1.uapp",
+    "appVersion":  "1.0.1",
     "minKernelVersion":  "1.4.0",
     "requiredHardware":  [
 

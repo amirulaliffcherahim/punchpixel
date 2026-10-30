@@ -43,6 +43,7 @@ private:
     bool     mR2Down    = false;
     bool     mHoldFired = false;
     uint32_t mR2At      = 0;
+    bool     mPaintedStill = false;   ///< the static pause screen is already on display
 };
 
 #endif

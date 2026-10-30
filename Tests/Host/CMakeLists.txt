@@ -22,9 +22,12 @@ set(LIBS "${CMAKE_CURRENT_LIST_DIR}/../../Software/Libs")
 add_executable(punchpixel-host-tests
     Game_test.cpp
     Scene_test.cpp
+    Perf_test.cpp
+    Audio_test.cpp
     "${LIBS}/Sources/Game.cpp"
     "${LIBS}/Sources/Painter.cpp"
     "${LIBS}/Sources/Scene.cpp"
+    "${LIBS}/Sources/Audio.cpp"
 )
 target_include_directories(punchpixel-host-tests PRIVATE "${LIBS}/Header")
 target_link_libraries(punchpixel-host-tests PRIVATE GTest::gtest_main)
