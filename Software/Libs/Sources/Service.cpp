@@ -127,14 +127,13 @@ void Service::playSfx(uint32_t kind)
 
 void Service::silence()
 {
-    // Empty patterns cancel whatever is playing (as the SDK's Alarm and Timer do).
-    if (auto* b = mKernel.comm.allocateMessage<SDK::Message::RequestBuzzerPlay>()) {
-        mKernel.comm.sendMessage(b);
-        mKernel.comm.releaseMessage(b);
-    }
-    if (auto* v = mKernel.comm.allocateMessage<SDK::Message::RequestVibroPlay>()) {
-        mKernel.comm.sendMessage(v);
-        mKernel.comm.releaseMessage(v);
+    // Only send an empty cancel pattern if a note is still sounding, so exit
+    // does not queue redundant messages.
+    if (mAudio.buzzerActive(mKernel.sys.getTimeMs())) {
+        if (auto* b = mKernel.comm.allocateMessage<SDK::Message::RequestBuzzerPlay>()) {
+            mKernel.comm.sendMessage(b);
+            mKernel.comm.releaseMessage(b);
+        }
     }
     mAudio.stop();
 }

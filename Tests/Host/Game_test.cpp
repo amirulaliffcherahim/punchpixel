@@ -408,6 +408,65 @@ TEST(Game, LongStallDoesNotFastForward)
     EXPECT_LE(r.g.t - t, 250u);
 }
 
+TEST(Game, BossRotationHasFourPresetMovesAndOneRandomSlot)
+{
+    // Across two different RNG seeds, the first 4 steps of Rookie Rick's
+    // rotation must be identical: ATK_L (-1), ATK_R (+1), BREATHE (IDLE), ATK_L (-1).
+    for (uint32_t seed : {1u, 99999u}) {
+        Game g(seed);
+        uint32_t now = 1000;
+        g.tick(now);
+        g.press(Btn::R1);
+        for (uint32_t i = 0; i < kIntroMs + 20; i += 10) { now += 10; g.tick(now); }
+
+        // Step 0: ATK_L
+        g.fUntil = g.t;
+        now += 10; g.tick(now);
+        EXPECT_EQ(g.fs, FoeState::WINDUP);
+        EXPECT_EQ(g.fSide, -1);
+
+        // Step 1: ATK_R
+        g.fs = FoeState::IDLE; g.fUntil = g.t;
+        now += 10; g.tick(now);
+        EXPECT_EQ(g.fs, FoeState::WINDUP);
+        EXPECT_EQ(g.fSide, 1);
+
+        // Step 2: BREATHE stays in IDLE for a calm beat
+        g.fs = FoeState::IDLE; g.fUntil = g.t;
+        now += 10; g.tick(now);
+        EXPECT_EQ(g.fs, FoeState::IDLE);
+        EXPECT_GE(g.fUntil - g.t, 600u);
+
+        // Step 3: ATK_L
+        g.fs = FoeState::IDLE; g.fUntil = g.t;
+        now += 10; g.tick(now);
+        EXPECT_EQ(g.fs, FoeState::WINDUP);
+        EXPECT_EQ(g.fSide, -1);
+    }
+}
+
+TEST(Game, FoeEnragesAtFiftyPercentHealth)
+{
+    Rig r;
+    r.toFight();
+    const uint16_t full = foeDef(0).hp;
+    EXPECT_FALSE(r.g.enraged());
+    r.g.foeHp = full / 2 + 1;
+    EXPECT_FALSE(r.g.enraged());
+    r.g.foeHp = full / 2;
+    EXPECT_TRUE(r.g.enraged());
+
+    // Enraged Rookie Rick: +1 combo punch (2 instead of 1), faster windup,
+    // and the BREATHE step (step 2) turns into an attack instead of resting.
+    r.g.patternStep = 2;
+    r.g.fs = FoeState::IDLE;
+    r.g.fUntil = r.g.t;
+    r.run(10);
+    EXPECT_EQ(r.g.fs, FoeState::WINDUP);
+    EXPECT_EQ(r.g.comboLeft, foeDef(0).combo + 1);
+    EXPECT_LT(r.g.fUntil - r.g.fSince, foeDef(0).windupMs);
+}
+
 TEST(Game, AFullAutoplayedRunCanBeWon)
 {
     // A bot that dodges every tell, counters, and rolls when armed must be

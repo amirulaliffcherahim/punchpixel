@@ -6,7 +6,9 @@
  * The game is fast; the hardware must stay gentle:
  *
  *  - The buzzer sounds for a critical hit (1 in 10 jabs) only, as a single
- *    short tone followed by a silent note so the piezo is always left off.
+ *    short default-pitch note (frequency = 0, notesCount = 1 — identical in
+ *    format to NeuroReflex's hardware-verified beep), at least kMinBuzzerGapMs
+ *    apart. No trailing frequency-retuned note is appended.
  *  - Button presses and weaves do not vibrate; only landed punches, dodges
  *    and round moments do, each as one short single-shot click/tick, at least
  *    kMinVibroGapMs apart.
@@ -26,13 +28,10 @@
 namespace Pp
 {
 
-constexpr uint16_t kMinHz          = 500;
-constexpr uint16_t kMaxHz          = 4000;
-constexpr uint8_t  kMaxVolume      = 33;     ///< softest audible step
-constexpr uint16_t kTailRestMs     = 30;     ///< silent note closing every pattern
-constexpr uint32_t kMinBuzzerGapMs = 600;    ///< between crit beeps
-constexpr uint32_t kMinVibroGapMs  = 140;    ///< between motor ticks (one per punch)
-constexpr uint32_t kMaxNotes       = 4;
+constexpr uint8_t  kMaxVolume      = 66;     ///< same level as NeuroReflex
+constexpr uint32_t kMinBuzzerGapMs = 1000;   ///< at least 1 s between crit beeps
+constexpr uint32_t kMinVibroGapMs  = 160;    ///< between motor ticks (one per punch)
+constexpr uint32_t kMaxNotes       = 2;
 
 struct Note
 {
@@ -52,6 +51,10 @@ class Audio
 {
 public:
     Plan play(Sfx s, uint32_t nowMs);
+    bool buzzerActive(uint32_t nowMs) const
+    {
+        return mStarted && static_cast<int32_t>(nowMs - mBuzzerFreeAt) < 0;
+    }
     void stop() { mBuzzerFreeAt = mBuzzerLastStart = mVibroFreeAt = 0; mVibroPrio = 0; mStarted = false; }
     static uint32_t patternMs(const Plan& p);
 

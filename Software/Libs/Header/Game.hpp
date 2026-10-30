@@ -20,8 +20,9 @@
 namespace Pp
 {
 
-constexpr int kFoeCount = 4;
-constexpr int kRollNeed = 4;   ///< alternating weaves needed to arm the Dempsey Roll
+constexpr int kFoeCount     = 4;
+constexpr int kPatternSteps = 5;   ///< 4 preset moves + 1 random slot per boss cycle
+constexpr int kRollNeed     = 4;   ///< alternating weaves needed to arm the Dempsey Roll
 constexpr int kRollMax  = 5;
 constexpr int kPlayerHp = 100;
 
@@ -58,6 +59,10 @@ enum class FoeState : uint8_t { IDLE, GUARD, WINDUP, SWING, RECOVER, STUN, KO };
 enum class PlState : uint8_t { IDLE, JAB, WEAVE, HIT, DEMPSEY, KO };
 enum class Pop : uint8_t { NONE, POW, BAM, BLOCK, DODGE, COUNTER, WHAM, OUCH };
 
+/// Preset boss move: ATK_L / ATK_R start a combo on that side, GUARD raises
+/// the guard, BREATHE takes an extra rest window, RANDOM rolls at runtime.
+enum class FoeMove : int8_t { ATK_L = -1, GUARD = 0, ATK_R = 1, BREATHE = 2, RANDOM = 3 };
+
 struct FoeDef
 {
     const char* name;
@@ -66,10 +71,11 @@ struct FoeDef
     uint16_t    comboGapMs;  ///< windup of the 2nd..nth punch of a combo
     uint16_t    restMs;      ///< open for a counter after a combo
     uint8_t     combo;       ///< punches per attack, sides alternate
-    uint8_t     guardPct;    ///< chance to guard instead of attacking
+    uint8_t     guardPct;    ///< chance to guard on the random slot
     uint8_t     dmg;
     uint8_t     big;         ///< extra body width
     uint32_t    skin, hair, trunks, glove, bgA, bgB;
+    FoeMove     pattern[kPatternSteps];   ///< 4/5 preset rotation, 1/5 random
 };
 
 const FoeDef& foeDef(int idx);
@@ -101,6 +107,7 @@ struct Game
     uint32_t fUntil = 0;
     int      comboLeft  = 0;
     int      guardHits  = 0;
+    int      patternStep = 0;          ///< 0..kPatternSteps-1 in the rival's rotation
     uint32_t fHurtUntil = 0;
 
     int      plHp  = kPlayerHp;
@@ -130,6 +137,8 @@ struct Game
     /// 0..3 = S, A, B, C by health left at the end of the run.
     int rank() const;
     bool rollReady() const { return roll >= kRollNeed; }
+    /// True once the rival drops to 50 % HP or below (faster windup, +1 combo, +2 dmg).
+    bool enraged() const { return foeHp > 0 && foeHp * 2 <= foeDef(foeIdx).hp; }
 
 private:
     uint32_t mRng;

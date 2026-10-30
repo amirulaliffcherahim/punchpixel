@@ -288,13 +288,14 @@ void drawFoe(Painter& p, const Game& g, const Cam& cam)
         p.r(x - 4, ey + 1, 3, 1, BLK);
         p.r(x + 2, ey + 1, 3, 1, BLK);
     } else {
-        const uint32_t ec = hot ? RED : WHT;
+        const bool rage = g.enraged();
+        const uint32_t ec = (hot || rage) ? RED : WHT;
         p.r(x - 4, ey, 3, 3, ec);
         p.r(x + 2, ey, 3, 3, ec);
         const int look = g.fSide;
         p.r(x - 3 + (hot ? look : 0), ey + 1, 1, 2, BLK);
         p.r(x + 3 + (hot ? look : 0), ey + 1, 1, 2, BLK);
-        if (hot) {                                              // angry brows
+        if (hot || rage) {                                      // angry brows
             p.r(x - 5, ey - 2, 3, 1, BLK); p.r(x - 3, ey - 1, 1, 1, BLK);
             p.r(x + 3, ey - 2, 3, 1, BLK); p.r(x + 2, ey - 1, 1, 1, BLK);
         }
@@ -459,7 +460,8 @@ void drawHud(Painter& p, const Game& g, uint32_t clk)
     if (low && ((clk / 120) & 1)) pc = WHT;
     const int span = kHpA1 - kHpA0;
     gauge(p, kHpA0, kHpA1, span * g.plHp / kPlayerHp, false, pc);
-    gauge(p, kFoeA0, kFoeA1, span * g.foeHp / d.hp, true, ORG);
+    const uint32_t fc = g.enraged() && ((clk / 120) & 1) ? RED : ORG;
+    gauge(p, kFoeA0, kFoeA1, span * g.foeHp / d.hp, true, fc);
 
     // Dempsey meter: four chunky segments across the bottom of the bezel.
     for (int i = 0; i < kRollNeed; ++i) {

@@ -89,7 +89,7 @@ try {
     Shot "09_after_roll"
 
     "== next fight: hold R2 pauses"
-    Start-Sleep -Milliseconds 1800
+    Start-Sleep -Milliseconds 3000
     Tap '3'; Start-Sleep -Milliseconds 2800
     Tap '4' 1100
     Start-Sleep -Milliseconds 300
@@ -99,8 +99,8 @@ try {
     Tap '1'; Start-Sleep -Milliseconds 300
     Check ((Sig) -ne $sp) "top button resumes"
 
-    "== jab until a 1/10 crit lands"
-    for ($i = 0; $i -lt 16; $i++) {
+    "== jab into enrage (<=50% HP)"
+    for ($i = 0; $i -lt 10; $i++) {
         Tap $(if ($i % 2) { '3' } else { '1' }) 40
         Start-Sleep -Milliseconds 320
     }
@@ -120,7 +120,7 @@ $log = [string](Get-Content "$OutDir\sim.log" -Raw)
 Check ([bool]($log -match "Mock\.Vibro::play")) "vibro played"
 Check (-not ($log -match "effect=(10|14|15|16|27|34|37|47|52|54|56),")) "short single-click vibration effects only"
 $tones = [regex]::Matches($log, "level=[1-3], (\d+) Hz") | % { [int]$_.Groups[1].Value }
-Check (($tones | ? { $_ -ne 1800 }).Count -eq 0) "buzzer only ever plays the 1800 Hz crit note"
+Check (($tones | ? { $_ -ne 0 }).Count -eq 0) "buzzer only ever uses default 0 Hz pitch (like NeuroReflex)"
 Check ($tones.Count -le 4) "buzzer rarely fires (crit is 1 in 10)"
 
 if ($script:fail.Count) { "FAILED: $($script:fail.Count)"; exit 1 } else { "ALL OK"; exit 0 }

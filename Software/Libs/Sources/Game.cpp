@@ -6,12 +6,18 @@ namespace Pp
 namespace
 {
 // Only the SDK's 64-colour palette: every channel is 00, 55, AA or FF.
+// Each rival runs a 5-step boss rotation: 4 preset moves + 1 random slot.
+using M = FoeMove;
 const FoeDef kFoes[kFoeCount] = {
     //  name            hp   wind gap  rest cmb grd dmg big  skin      hair      trunks    glove     bgA       bgB
-    { "ROOKIE RICK",    60,  610, 500, 980, 1,  10, 10, 0, 0xFFAA55, 0x555500, 0x00AAFF, 0xFF5555, 0xAA55FF, 0x5500AA },
-    { "KID KOBRA",      90,  510, 455, 825, 2,  25, 12, 0, 0xAA5500, 0x000000, 0x00AA55, 0xFFFF00, 0xFF5555, 0xAA0000 },
-    { "IRON IVAN",     120,  470, 445, 720, 3,  30, 13, 1, 0xFFAA55, 0xFFAA00, 0xAA0000, 0x55AAFF, 0x55AAFF, 0x0055AA },
-    { "KING KRUSH",    160,  425, 435, 650, 4,  30, 15, 2, 0x55AA55, 0xFF55FF, 0xFFFF00, 0xAA0000, 0xFFAA00, 0xAA5500 },
+    { "ROOKIE RICK",    60,  610, 500, 980, 1,  20, 10, 0, 0xFFAA55, 0x555500, 0x00AAFF, 0xFF5555, 0xAA55FF, 0x5500AA,
+      { M::ATK_L, M::ATK_R, M::BREATHE, M::ATK_L, M::RANDOM } },
+    { "KID KOBRA",      90,  510, 455, 825, 2,  35, 12, 0, 0xAA5500, 0x000000, 0x00AA55, 0xFFFF00, 0xFF5555, 0xAA0000,
+      { M::ATK_R, M::GUARD, M::ATK_L, M::BREATHE, M::RANDOM } },
+    { "IRON IVAN",     120,  470, 445, 720, 3,  40, 13, 1, 0xFFAA55, 0xFFAA00, 0xAA0000, 0x55AAFF, 0x55AAFF, 0x0055AA,
+      { M::ATK_L, M::GUARD, M::ATK_R, M::BREATHE, M::RANDOM } },
+    { "KING KRUSH",    160,  425, 435, 650, 4,  40, 15, 2, 0x55AA55, 0xFF55FF, 0xFFFF00, 0xAA0000, 0xFFAA00, 0xAA5500,
+      { M::ATK_R, M::ATK_L, M::GUARD, M::BREATHE, M::RANDOM } },
 };
 } // namespace
 
@@ -97,6 +103,7 @@ void Game::startFight()
     lastWeaveSide = 0;
     counterUntil = 0;
     guardHits = 0;
+    patternStep = 0;
     pop = Pop::NONE;
     shakeUntil = hurtFlashUntil = hitFlashUntil = fHurtUntil = 0;
     screen = Screen::INTRO;
@@ -340,7 +347,7 @@ void Game::resolveSwing()
         emit(Sfx::DODGE);
         return;
     }
-    plHp -= d.dmg;
+    plHp -= d.dmg + (enraged() ? 2 : 0);
     ps = PlState::HIT;
     pSide = fSide;
     pSince = t;
@@ -429,16 +436,39 @@ void Game::beginWindup(int side, int left, uint32_t ms)
 void Game::stepFoe()
 {
     const FoeDef& d = foeDef(foeIdx);
+    const bool rage = enraged();
+    const uint32_t windMs = rage ? (static_cast<uint32_t>(d.windupMs) * 88) / 100 : d.windupMs;
+    const uint32_t gapMs  = rage ? (static_cast<uint32_t>(d.comboGapMs) * 88) / 100 : d.comboGapMs;
+    const int      cmb    = d.combo + (rage ? 1 : 0);
+
     switch (fs) {
         case FoeState::IDLE:
             if (t >= fUntil) {
-                if (static_cast<int>(rand(100)) < d.guardPct) {
+                FoeMove mv = d.pattern[patternStep % kPatternSteps];
+                patternStep = (patternStep + 1) % kPatternSteps;
+                if (mv == FoeMove::RANDOM) {
+                    if (static_cast<int>(rand(100)) < d.guardPct) {
+                        mv = FoeMove::GUARD;
+                    } else {
+                        mv = rand(2) ? FoeMove::ATK_R : FoeMove::ATK_L;
+                    }
+                }
+                // Enraged bosses skip their breather and swing instead.
+                if (mv == FoeMove::BREATHE && rage) {
+                    mv = (patternStep & 1) ? FoeMove::ATK_L : FoeMove::ATK_R;
+                }
+                if (mv == FoeMove::GUARD) {
                     fs = FoeState::GUARD;
                     fSince = t;
                     fUntil = t + 900;
                     guardHits = 0;
+                } else if (mv == FoeMove::BREATHE) {
+                    // Calm beat so the player and watch can breathe.
+                    fs = FoeState::IDLE;
+                    fSince = t;
+                    fUntil = t + 650;
                 } else {
-                    beginWindup(rand(2) ? 1 : -1, d.combo, d.windupMs);
+                    beginWindup(mv == FoeMove::ATK_R ? 1 : -1, cmb, windMs);
                 }
             }
             break;
@@ -446,7 +476,7 @@ void Game::stepFoe()
             if (t >= fUntil) {
                 fs = FoeState::IDLE;
                 fSince = t;
-                fUntil = t + 250;
+                fUntil = t + 320;
             }
             break;
         case FoeState::WINDUP:
@@ -461,7 +491,7 @@ void Game::stepFoe()
                 resolveSwing();
                 if (screen != Screen::FIGHT) break;
                 if (--comboLeft > 0) {
-                    beginWindup(-fSide, comboLeft, d.comboGapMs);
+                    beginWindup(-fSide, comboLeft, gapMs);
                 } else {
                     fs = FoeState::RECOVER;
                     fSince = t;
@@ -473,14 +503,14 @@ void Game::stepFoe()
             if (t >= fUntil) {
                 fs = FoeState::IDLE;
                 fSince = t;
-                fUntil = t + 250 + rand(300);
+                fUntil = t + (rage ? 260 : 380);
             }
             break;
         case FoeState::STUN:
             if (t >= fUntil) {
                 fs = FoeState::IDLE;
                 fSince = t;
-                fUntil = t + 350;
+                fUntil = t + 380;
             }
             break;
         case FoeState::KO:

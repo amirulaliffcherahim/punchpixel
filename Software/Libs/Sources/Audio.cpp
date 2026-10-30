@@ -26,8 +26,8 @@ const Def kDefs[] = {
     { 24, 140, 0,  { {0, 0} } },                        // DODGE
     { 24, 140, 0,  { {0, 0} } },                        // BLOCK
     { 0,  0,   0,  { {0, 0} } },                        // ROLL_UP (weave is visual)
-    { 24, 140, 0,  { {0, 0} } },                        // HIT: one crisp tick per landed punch
-    { 21, 160, 33, { {1800, 35}, {0, 0} } },            // CRIT: the only sound (1 in 10 jabs)
+    { 24, 160, 0,  { {0, 0} } },                        // HIT: one crisp tick per landed punch
+    { 21, 180, 66, { {0, 80}, {0, 0} } },               // CRIT: 1 note at kernel default pitch (0 Hz)
     { 21, 180, 0,  { {0, 0} } },                        // HURT
     { 4,  160, 0,  { {0, 0} } },                        // ROLL_READY
     { 21, 160, 0,  { {0, 0} } },                        // DEMPSEY
@@ -70,17 +70,10 @@ Plan Audio::play(Sfx s, uint32_t now)
                              atOrAfter(now, mBuzzerLastStart + kMinBuzzerGapMs));
     if (buzzerFree && d.tones[0].ms) {
         const uint8_t vol = d.volume > kMaxVolume ? kMaxVolume : d.volume;
-        for (const Tone& t : d.tones) {
-            if (t.ms == 0 || p.noteCount + 1 >= kMaxNotes) {
-                break;
-            }
-            Note& n = p.notes[p.noteCount++];
-            n.hz  = t.hz < kMinHz ? kMinHz : (t.hz > kMaxHz ? kMaxHz : t.hz);
-            n.ms  = t.ms;
-            n.vol = vol;
-        }
-        Note& tail = p.notes[p.noteCount++];       // always end silent
-        tail.ms = kTailRestMs;
+        Note& n = p.notes[p.noteCount++];
+        n.hz  = d.tones[0].hz;                          // 0 = kernel default pitch
+        n.ms  = d.tones[0].ms;
+        n.vol = vol;
         mBuzzerLastStart = now;
         mBuzzerFreeAt    = now + patternMs(p);
     }

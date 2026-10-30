@@ -42,17 +42,16 @@ TEST(Audio, VibrationsAreShortSingleClicksOnly)
     }
 }
 
-TEST(Audio, CritBeepIsOneShortSoftNoteAndEndsSilent)
+TEST(Audio, CritBeepMatchesNeuroReflexSingleNoteDefaultPitchFormat)
 {
     Audio a;
     const Plan p = a.play(Sfx::CRIT, 1000);
-    ASSERT_EQ(p.noteCount, 2u);
-    EXPECT_GE(p.notes[0].hz, 500);
-    EXPECT_LE(p.notes[0].hz, kMaxHz);
-    EXPECT_LE(p.notes[0].ms, 50);
-    EXPECT_LE(p.notes[0].vol, 33);
-    EXPECT_EQ(p.notes[1].vol, 0) << "must leave the piezo off";
-    EXPECT_GT(p.notes[1].ms, 0);
+    ASSERT_EQ(p.noteCount, 1u);
+    EXPECT_EQ(p.notes[0].hz, 0) << "use kernel default pitch like NeuroReflex";
+    EXPECT_EQ(p.notes[0].ms, 80);
+    EXPECT_EQ(p.notes[0].vol, 66);
+    EXPECT_TRUE(a.buzzerActive(1040));
+    EXPECT_FALSE(a.buzzerActive(1100));
 }
 
 TEST(Audio, CritsAndTicksRespectTheirRateGaps)
